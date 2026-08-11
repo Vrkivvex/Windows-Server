@@ -1,0 +1,117 @@
+# Day 01 – Enterprise Server Installation & Post-Install Hardening
+
+## 🎯 Purpose
+Establish a stable, standardized, and secure server baseline for an enterprise network using production-grade post-installation practices.
+
+---
+
+## 🔑 Key Concepts & Terms
+
+* Server OS: An operating system engineered to run multi-user services, manage network infrastructure, and handle heavy workloads 24/7.
+* Server Core: A minimal installation option with no graphical interface (GUI), designed for lower resource usage, reduced patching, and a smaller attack surface.
+* Desktop Experience: The standard GUI-enabled installation featuring Server Manager, Control Panel, and full desktop tools.
+* Static IP Address: A fixed network address assigned to a server to prevent service disruption caused by lease changes.
+* DNS Loopback (127.0.0.1): A local network configuration directing the server to query its own local DNS services.
+* Remote Desktop Protocol (RDP): A secure administrative protocol used to manage servers headlessly over the network.
+
+---
+
+## 🏗️ Architecture
+
+
+SERVER CORE (Lightweight Baseline)       DESKTOP EXPERIENCE (Full Management)
++----------------------------------+     +----------------------------------+
+|           Command Line           |     |        Server Manager / GUI      |
+|         PowerShell / CMD         |     |        Desktop Environment       |
++----------------------------------+     +----------------------------------+
+|          Core System Services    |     |       Core System Services       |
++----------------------------------+     +----------------------------------+
+|          Windows Kernel          |     |          Windows Kernel          |
++----------------------------------+     +----------------------------------+
+ * Footprint: ~1.5 GB RAM                * Footprint: ~2.5+ GB RAM
+ * Attack Surface: Minimal               * Attack Surface: Broader
+ * Management: Remote Only               * Management: Local GUI + Remote
+
+
+---
+
+## ⚡ Step-by-Step Flow: Post-Install Hardening Workflow
+
+
+1. Mount ISO and install Windows Server 2022 (Standard Desktop Experience)
+2. Resolve virtual hardware and installer conflicts (Floppy / Unattended Setup)
+3. Set initial secure local Administrator account password
+4. Rename random computer name (e.g., WIN-X98A1) to standardized hostname (DC01)
+5. Assign static IP parameters (192.168.1.10/24, Gateway: 192.168.1.1)
+6. Configure DNS address to loopback (127.0.0.1) for future AD integration
+7. Enable Remote Desktop (RDP) and adjust firewall rules
+8. Reboot server to finalize changes and verify network stack
+
+
+---
+
+## 🛠️ Execution Methods
+
+### Option A: PowerShell Automation (Enterprise Deployment)
+
+# 1. Rename Host to Enterprise Standard
+Rename-Computer -NewName "DC01" -Force
+
+# 2. View Available Network Adapter Alias
+Get-NetAdapter
+
+# 3. Assign Static IP & Gateway
+New-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress 192.168.1.10 -PrefixLength 24 -DefaultGateway 192.168.1.1
+
+# 4. Configure DNS to Local Loopback
+Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses ("127.0.0.1")
+
+# 5. Enable Remote Desktop & Firewall Exceptions
+Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+### Option B: Interactive Utility Method (sconfig)
+
+1. Open Command Prompt or PowerShell.
+2. Type sconfig and press Enter.
+3. Select Option 2 (Computer Name) -> Set to DC01.
+4. Select Option 8 (Network Settings) -> Select Adapter -> Assign Static IP, Subnet Mask, Gateway, and DNS.
+5. Select Option 7 (Remote Desktop) -> Choose E (Enable).
+6. Select Option 13 (Restart Server) to commit changes.
+
+---
+
+## 💡 Real-World Explanation
+
+In production environments, servers are deployed by the hundreds. Leaving a server on dynamic IP settings or keeping auto-generated system names causes service outages and confusion during incident response.
+
+Setting a static IP ensures network services like active directory, file shares, and web applications remain consistently reachable. Renaming hosts to standardized patterns (e.g., DC01, FS01, WEB01) allows monitoring systems, security logs, and administrators to immediately identify a machine's role and location.
+
+---
+
+## 🚨 Common Pitfalls & Troubleshooting
+
+* Error: Windows cannot find the Microsoft Software License Terms.
+  * Cause: VMware Easy Install or VirtualBox unattended setup conflicts with answer files, or insufficient assigned RAM.
+  * Fix: Remove virtual floppy drives (autoinst.flp), disable unattended installation options, and assign at least 2048 MB RAM.
+
+* Error: Accidental Black Screen on Server Core / Explorer Crash.
+  * Cause: Command prompt or shell window was closed manually.
+  * Fix: Press Ctrl + Shift + Esc -> Click File -> Run new task -> Type cmd.exe or powershell.exe.
+
+* Error: Unable to connect via Remote Desktop (RDP).
+  * Cause: Host firewall blocking TCP Port 3389 or network profile set to Public.
+  * Fix: Enable the Remote Desktop firewall group or change the network location profile to Private.
+
+---
+
+## ❓ Essential Interview Questions
+
+Q1: Why should production servers run Server Core instead of Desktop Experience?
+A1: Server Core drastically reduces system resource usage, lowers the number of mandatory patches and reboots, and minimizes the attack surface by eliminating graphical subsystems.
+
+Q2: What is the risk of keeping DHCP enabled on a server role like a Domain Controller or DNS server?
+A2: If the IP address lease expires or changes, all client devices referencing that IP for domain authentication or name resolution will immediately fail to communicate with the service.
+
+Q3: What port does Remote Desktop Protocol (RDP) use by default?
+A3: RDP uses TCP port 3389.
