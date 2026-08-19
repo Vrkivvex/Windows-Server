@@ -1,0 +1,116 @@
+# Day 02 – Active Directory Domain Services (AD DS) Promotion
+
+## 🎯 Purpose
+Transform a standalone server into a Forest Root Domain Controller to centralize management of users, computers, and security policies across the network.
+
+---
+
+## 🔑 Key Concepts & Terms
+
+* Active Directory Domain Services (AD DS): A distributed directory service that stores information about network resources and provides centralized authentication.
+* Domain Controller (DC): A server hosting the Active Directory database (ntds.dit) that authenticates users and enforces security policies.
+* Forest: The highest-level organizational container in Active Directory. A forest contains one or more domains that share a single schema and trust relationships.
+* Forest Root Domain: The very first domain created in an Active Directory forest topology (e.g., corp.local).
+* DSRM (Directory Services Restore Mode): A specialized offline boot mode used to perform database repair or backup restoration on a DC.
+* Kerberos: The highly secure network authentication protocol used by Active Directory for logins.
+
+---
+
+## 🏗️ Architecture vs Standalone
+
+```text
+STANDALONE WORKGROUP (No AD)
++-------------+      +-------------+
+| Workstation |      | File Server |
+| Local User  |      | Local User  |
++-------------+      +-------------+
+ * User must have local accounts on EVERY machine.
+ * Zero centralized management.
+
+ACTIVE DIRECTORY DOMAIN
+                     +-----------------------+
+                     |  Domain Controller    |
+                     |       (DC01)          |
+                     |  Central Database     |
+                     +-----------+-----------+
+                                 |
+         +-----------------------+-----------------------+
+         |                                               |
++--------v----+                                 +--------v----+
+| Workstation |                                 | File Server |
+| Domain User |                                 | Domain User |
++-------------+                                 +-------------+
+ * User authenticates ONCE against DC01.
+ * Access granted centrally across all domain resources.
+```
+
+---
+
+## 🛠️ Execution Methods: Promoting a Domain Controller
+
+### Method 1: Interactive GUI Method (Server Manager)
+1. Open Server Manager -> Manage -> Add Roles and Features.
+2. Check Active Directory Domain Services -> Add Features -> Install.
+3. Once installed, click the Notification Flag -> Promote this server to a domain controller.
+4. Select Add a new forest -> Set Root domain name (e.g., corp.local).
+5. Enter a secure DSRM Password -> Keep default paths for Database (NTDS) and SYSVOL.
+6. Click Install and allow the server to automatically reboot.
+
+### Method 2: PowerShell Automation (Enterprise Standard)
+```powershell
+# 1. Install AD DS Feature and Management Tools
+Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
+
+# 2. Promote Server to Forest Root Domain Controller
+Import-Module ADDSDeployment
+Install-ADDSForest `
+  -DomainName "corp.local" `
+  -DomainNetbiosName "CORP" `
+  -InstallDns:$true `
+  -CreateDnsDelegation:$false `
+  -DatabasePath "C:\Windows\NTDS" `
+  -LogPath "C:\Windows\NTDS" `
+  -SysvolPath "C:\Windows\SYSVOL" `
+  -Force:$true
+```
+
+---
+
+## ✅ Post-Promotion Health Checks
+
+Always verify a Domain Controller's health after promotion before joining clients to the network.
+
+# Check 1: Verify Core AD Services are Running
+Get-Service -Name adws, dns, kdc
+* adws: Active Directory Web Services (Allows management tools to connect).
+* dns: DNS Server (Required for clients to locate the domain).
+* kdc: Kerberos Key Distribution Center (Handles authentication/passwords).
+
+# Check 2: Verify DNS Service (SRV) Records
+Resolve-DnsName -Name _ldap._tcp.dc._msdcs.corp.local -Type SRV
+* This ensures that when a computer asks "Who handles logins?", DNS correctly points to this server's hostname and Static IP on Port 389 (LDAP).
+
+---
+
+## 🚨 Common Pitfalls & Troubleshooting
+
+* Error: Prerequisites failed: Static IP address not detected.
+  * Cause: Network adapter was left on DHCP mode.
+  * Fix: Configure a static IP (e.g., 192.168.1.10) in network connections.
+
+* Error: Active Directory wizard failed to query DNS.
+  * Cause: Server DNS points to external public DNS (like 8.8.8.8).
+  * Fix: Set network adapter Primary DNS to 127.0.0.1 or the server's own static IP.
+
+---
+
+## ❓ Essential Interview Questions
+
+Q1: What is the exact file path of the main Active Directory database?
+A1: C:\Windows\NTDS\ntds.dit
+
+Q2: What is stored in the SYSVOL shared folder?
+A2: C:\Windows\SYSVOL stores Group Policy Objects (GPOs) and logon/logoff scripts that replicate across all Domain Controllers.
+
+Q3: Why are DNS SRV records vital for Active Directory?
+A3: SRV records allow client computers to locate the specific servers providing domain services, such as Kerberos (Port 88) and LDAP (Port 389).
