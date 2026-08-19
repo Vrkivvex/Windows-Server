@@ -1,0 +1,94 @@
+# Day 03 – Active Directory Structure: OUs, Users, and Groups
+
+## 🎯 Purpose
+Design and implement a logical directory hierarchy to organize network objects, enable delegated administration, and establish Role-Based Access Control (RBAC) using Groups.
+
+---
+
+## 🔑 Key Concepts & Terms
+
+* Organizational Unit (OU): A container object in Active Directory used to organize users, computers, and other groups into a manageable hierarchy. OUs are the primary targets for Group Policy Objects (GPOs).
+* Security Group: A collection of user or computer accounts used to assign permissions to shared resources (like folders or printers).
+* Distinguished Name (DN): The absolute path to an object in the Active Directory database (e.g., `CN=Jane Doe,OU=HR,OU=_company,DC=corp,DC=local`).
+* Security Identifier (SID): A unique, immutable alphanumeric string assigned to every user, group, and computer. Permissions are tied to the SID, not the username.
+* dsa.msc: The command-line shortcut to open the "Active Directory Users and Computers" (ADUC) management console.
+
+---
+
+## 🏗️ Architecture: AD Hierarchy & RBAC
+
+```text
+corp.local (Root Domain)
+│
+└── _Company (Top-Level OU)
+    │
+    ├── IT (Child OU)
+    │   └── Admin User (User Object)
+    │
+    ├── HR (Child OU)
+    │   ├── Jane Doe (User Object)
+    │   └── HR-Folder-Access (Security Group)
+    │
+    └── Sales (Child OU)
+```
+*Rule of thumb:* Users go into Groups, Groups get assigned Permissions to folders/resources. Never assign permissions directly to a user account.
+
+---
+
+## 🛠️ Execution Methods
+
+### Option A: Interactive GUI Method (ADUC)
+1. Press `Win + R`, type `dsa.msc`, and press Enter.
+2. Right-click the domain -> New -> Organizational Unit (Create `_Company`).
+3. Right-click `_Company` -> New -> Organizational Unit (Create `IT`, `HR`).
+4. Right-click the target OU -> New -> User (Follow wizard to set name and password).
+5. Right-click the target OU -> New -> Group (Create a Global Security Group).
+6. Double-click the Group -> Members tab -> Add -> Type username -> OK.
+
+### Option B: PowerShell Automation (Enterprise Standard)
+
+# 1. Create the OU Structure
+New-ADOrganizationalUnit -Name "_Company" -Path "DC=corp,DC=local"
+New-ADOrganizationalUnit -Name "HR" -Path "OU=_Company,DC=corp,DC=local"
+
+# 2. Create a User Account
+New-ADUser -Name "Jane Doe" -GivenName "Jane" -Surname "Doe" -SamAccountName "jane.doe" -UserPrincipalName "jane.doe@corp.local" -Path "OU=HR,OU=_Company,DC=corp,DC=local" -AccountPassword (ConvertTo-SecureString "P@ssw0rd123!" -AsPlainText -Force) -Enabled $true
+
+# 3. Create a Security Group and Add the User
+New-ADGroup -Name "HR-Folder-Access" -GroupScope Global -GroupCategory Security -Path "OU=HR,OU=_Company,DC=corp,DC=local"
+Add-ADGroupMember -Identity "HR-Folder-Access" -Members "jane.doe"
+
+---
+
+## 💡 Real-World Explanation
+
+If you dump all users and computers into the default Active Directory folders, you cannot apply specific security policies to different departments. 
+
+By structuring the company into OUs, a SysAdmin can apply a policy that says, "Force the IT department's computer screens to lock after 5 minutes," without affecting the HR department. 
+
+Furthermore, we use Security Groups for permissions. If HR has 50 employees, we don't add 50 individual users to the HR shared folder permissions. We add the `HR-Folder-Access` group to the folder once, and simply drop the 50 users into that group. When someone quits, we remove their account from the group, cleanly revoking all their access at once.
+
+---
+
+## ✅ Post-Configuration Verification
+
+Verify an object's location and membership directly from the AD Database:
+
+# View specific user details and DN
+Get-ADUser -Identity "admin.user"
+
+# View all members inside a specific security group
+Get-ADGroupMember -Identity "HR-Folder-Access"
+
+---
+
+## ❓ Essential Interview Questions
+
+Q1: What is the primary difference between an Organizational Unit (OU) and a Security Group?
+A1: An OU is used to organize objects hierarchically and apply Group Policy Objects (GPOs). A Security Group is used to grant or deny access to network resources (like file shares). You cannot apply a GPO directly to a Security Group.
+
+Q2: What is a SID, and why is it important if a user changes their name?
+A2: A Security Identifier (SID) is the unique background ID assigned to an object. If a user changes their login name or display name, their SID remains the same, ensuring their access and permissions do not break.
+
+Q3: What is the Run command to quickly open Active Directory Users and Computers?
+A3: `dsa.msc`
