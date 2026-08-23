@@ -1,0 +1,77 @@
+# Day 04 – Group Policy Objects (GPOs) and Security Baselines
+
+## 🎯 Purpose
+Enforce security configurations, standardize desktop environments, and automate administrative tasks across all domain-joined computers and users from a central location.
+
+---
+
+## 🔑 Key Concepts & Terms
+
+* Group Policy Object (GPO): A virtual collection of policy settings used to configure operating systems, applications, and user settings in an Active Directory environment.
+* GPMC (Group Policy Management Console): The primary GUI tool (`gpmc.msc`) used by System Administrators to create, edit, and link GPOs.
+* Linking: A GPO does nothing until it is "linked" to a specific container in Active Directory, typically an Organizational Unit (OU) or the Domain root.
+* Computer Configuration: Policies applied to the physical machine as it boots up, regardless of who logs into it (e.g., Firewall rules, startup scripts).
+* User Configuration: Policies applied to the user at the moment they log in, regardless of which computer they are using (e.g., Desktop wallpaper, folder redirection).
+
+---
+
+## 🏗️ Architecture: GPO Inheritance
+
+```text
+corp.local (Domain Level)
+│
+└── _Company (OU Level)  <--- [LINKED: "Company-Security-Baseline" GPO]
+    │                         (Rule: Prohibit access to Control Panel)
+    │
+    ├── IT (Child OU)
+    │   └── Admin User        (Inherits Rule: Control Panel Blocked)
+    │
+    └── HR (Child OU)
+        └── Jane Doe          (Inherits Rule: Control Panel Blocked)
+```
+*Rule of thumb:* Policies flow downstream. A GPO linked at a parent OU automatically applies to all child OUs inside it.
+
+---
+
+## 🛠️ Execution Methods
+
+### Option A: Interactive GUI Method (GPMC)
+1. Press `Win + R`, type `gpmc.msc`, and press Enter.
+2. Expand Forest -> Domains -> corp.local.
+3. Right-click the target OU (e.g., `_Company`) -> Select **Create a GPO in this domain, and Link it here...**
+4. Name the GPO (e.g., `Company-Security-Baseline`).
+5. Right-click the newly created GPO -> **Edit**.
+6. Navigate the policy tree (e.g., *User Configuration -> Policies -> Administrative Templates -> Control Panel*).
+7. Double-click the desired policy, set it to **Enabled**, and apply configuration parameters.
+
+### Option B: PowerShell Automation (Enterprise Standard)
+
+# 1. Create a new, blank GPO
+New-GPO -Name "Company-Security-Baseline" -Comment "Basic security lockdowns for all employees"
+
+# 2. Link the GPO to a specific OU
+New-GPLink -Name "Company-Security-Baseline" -Target "OU=_Company,DC=corp,DC=local"
+
+# 3. View GPO configuration and status
+Get-GPO -Name "Company-Security-Baseline"
+
+---
+
+## 💡 Real-World Explanation
+
+In an enterprise with 500 computers, if management requires all machines to lock their screens after 10 minutes of inactivity and block access to the Control Panel, manual configuration is impossible. 
+
+SysAdmins use Group Policy to configure these settings once on the Domain Controller. When a user logs in, the client computer silently downloads the policy over the network and enforces the lockdown. If an employee tries to bypass it, Group Policy will re-apply the rule continuously in the background (by default, every 90 minutes).
+
+---
+
+## ❓ Essential Interview Questions
+
+Q1: What is the difference between Computer Configuration and User Configuration in a GPO?
+A1: Computer Configuration applies to the machine during the boot process (before login) and affects all users on that machine. User Configuration applies at the time of login and follows the specific user regardless of what machine they sit at.
+
+Q2: If a user tells you their new Group Policy settings haven't applied yet, what command can they run on their PC to force the update?
+A2: `gpupdate /force`
+
+Q3: What does the command `gpmc.msc` do?
+A3: It opens the Group Policy Management Console.
