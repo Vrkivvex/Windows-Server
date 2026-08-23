@@ -1,0 +1,80 @@
+# Day 05 – Domain Join & Trust Relationships
+
+## 🎯 Purpose
+Establish a secure, cryptographic trust relationship between a standalone client workstation and the Active Directory Domain Controller to enable centralized management and Group Policy enforcement.
+
+---
+
+## 🔑 Key Concepts & Terms
+
+* Domain Join: The process of connecting a standalone computer to an Active Directory domain, transforming it into a centrally managed network asset.
+* Trust Relationship: The secure, encrypted communication channel established between a domain-joined computer and a Domain Controller.
+* Computer Object: Just like users, every domain-joined computer has an account (object) in the Active Directory database (e.g., `CLIENT01$`).
+* DNS Dependency: A client computer cannot join a domain unless its network adapter's DNS setting points directly to a Domain Controller or a DNS server hosting the domain's zone records.
+
+---
+
+## 🏗️ Architecture: Workgroup vs. Domain
+
+```text
+BEFORE JOIN (Workgroup)              AFTER JOIN (Domain)
++-------------------+                +-------------------+
+| CLIENT01          |                | CLIENT01          |
+| DNS: 8.8.8.8      |                | DNS: 192.168.1.10 |
+| Local User Logins |                | AD User Logins    |
+| Unmanaged         |                | GPO Enforced      |
++-------------------+                +---------+---------+
+                                               |
+                                     +---------v---------+
+                                     | DC01 (corp.local) |
+                                     +-------------------+
+```
+
+---
+
+## 🛠️ Execution Methods
+
+### Option A: Interactive GUI Method
+1. Configure the client's network adapter: Set the **Primary DNS** to the Domain Controller's IP (e.g., `192.168.1.10`).
+2. Open **System Properties** (`sysdm.cpl`) -> **Computer Name** tab -> Click **Change...**
+3. Select **Domain**, enter the domain name (e.g., `corp.local`), and click OK.
+4. Enter Domain Admin credentials when prompted.
+5. Restart the computer to finalize the trust relationship and apply initial Group Policies.
+
+### Option B: PowerShell Automation (Enterprise Standard)
+```powershell
+# 1. Set DNS on the client network adapter
+Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses ("192.168.1.10")
+
+# 2. Join the domain and restart automatically
+Add-Computer -DomainName "corp.local" -Credential "CORP\Administrator" -Restart
+```
+
+---
+
+## ✅ Post-Configuration Verification
+
+Verify the computer account was successfully created inside the Active Directory database (Run on the Domain Controller):
+
+```powershell
+Get-ADComputer -Filter * | Select-Object Name, Enabled
+```
+
+---
+
+## 🚨 Common Pitfalls & Troubleshooting
+
+* Error: "The specified domain either does not exist or could not be contacted."
+  * Cause 1: The client's DNS is not pointing to the Domain Controller.
+  * Cause 2: Windows Firewall on the Domain Controller is blocking domain discovery traffic.
+  * Fix: Verify static IP/DNS settings, ensure VMs are on the same virtual switch, and temporarily disable the Domain/Private firewall profiles on the DC during lab setups.
+
+---
+
+## ❓ Essential Interview Questions
+
+Q1: Why does a computer fail to join a domain if its DNS is set to 8.8.8.8 (Google DNS)?
+A1: Public DNS servers have no knowledge of internal, private Active Directory domains (like corp.local). The client must query an internal DNS server that holds the SRV records for the Domain Controller.
+
+Q2: What happens if the secure trust relationship between a workstation and a Domain Controller breaks?
+A2: Users will receive an error stating "The trust relationship between this workstation and the primary domain failed," and they will be unable to log in using their domain credentials.
