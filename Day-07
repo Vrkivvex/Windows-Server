@@ -1,0 +1,83 @@
+# Day 07 – File Server Infrastructure & NTFS Permissions
+
+## 🎯 Purpose
+Centralize enterprise data storage, prevent data loss, and enforce strict Role-Based Access Control (RBAC) to ensure employees can only access files relevant to their department.
+
+---
+
+## 🔑 Key Concepts & Terms
+
+* SMB (Server Message Block): The network protocol used by Windows to share files, printers, and serial ports over a network.
+* Share Permissions (The Front Door): Basic network-level permissions that dictate who can discover and enter a shared folder over the network.
+* NTFS Permissions (The Safe): Deep, file-system-level security that dictates exactly what a user can do (Read, Write, Modify, Delete) once inside the folder. 
+* Inheritance: By default, any folder created inside a parent folder automatically inherits the parent's security rules.
+* Access Control List (ACL): The database of rules attached to a file or folder detailing exactly which SIDs (users/groups) have access.
+
+---
+
+## 🏗️ Architecture: The "Two Doors" Rule
+
+When users access a file over the network, Windows evaluates BOTH Share Permissions and NTFS Permissions. **The most restrictive permission always wins.**
+
+*Enterprise Standard Practice:*
+1. Set Share Permissions to: `Everyone = Full Control` (Leave the front door wide open).
+2. Set NTFS Permissions to: `Specific Security Group = Modify/Read` (Lock the safe inside).
+*Result:* This prevents conflicting rules and makes troubleshooting much easier, as all security is handled entirely by NTFS.
+
+---
+
+## 🛠️ Execution Methods
+
+### Option A: Interactive GUI Method
+1. Create a root data folder (e.g., `C:\CorpData\HR-Docs`).
+2. Right-click folder -> **Properties** -> **Sharing** tab -> **Advanced Sharing**.
+3. Check **Share this folder** -> Click **Permissions** -> Set **Everyone** to **Full Control**. Click OK.
+4. Switch to the **Security** tab -> Click **Advanced**.
+5. Click **Disable inheritance** -> **Convert inherited permissions into explicit permissions**.
+6. Remove the default `Users` group.
+7. Click **Add** -> Select the specific Department Security Group (e.g., `HR-Folder-Access`) -> Grant **Modify** access.
+
+### Option B: PowerShell Automation (Enterprise Standard)
+```powershell
+# 1. Create the Directory
+New-Item -Path "C:\CorpData\HR-Docs" -ItemType Directory
+
+# 2. Create the SMB Share and grant Everyone Full Control
+New-SmbShare -Name "HR-Docs" -Path "C:\CorpData\HR-Docs" -FullAccess "Everyone"
+
+# 3. Modify NTFS Permissions (Disable Inheritance and Add HR Group)
+$Acl = Get-Acl "C:\CorpData\HR-Docs"
+$Acl.SetAccessRuleProtection($true, $true) # Disables inheritance
+$AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule("CORP\HR-Folder-Access", "Modify", "ContainerInherit,ObjectInherit", "None", "Allow")
+$Acl.AddAccessRule($AccessRule)
+Set-Acl "C:\CorpData\HR-Docs" $Acl
+```
+
+---
+
+## ✅ Post-Configuration Verification
+
+Verify the Access Control List (ACL) directly from the command line:
+
+```powershell
+Get-Acl -Path "C:\CorpData\HR-Docs" | Format-List AccessToString
+```
+*Look for the specific department group and ensure generic `Users` are absent.*
+
+---
+
+## 🚨 Common Pitfalls & Troubleshooting
+
+* Error: A user is in the HR group but still gets "Access Denied."
+  * Cause: The user was added to the Active Directory security group, but they haven't logged out of their computer yet.
+  * Fix: Security tokens are generated at login. The user must log off and log back into Windows to receive their new group permissions.
+
+---
+
+## ❓ Essential Interview Questions
+
+Q1: If a user is granted "Full Control" via Share Permissions, but only "Read" via NTFS permissions, what can they do to the files over the network?
+A1: They can only Read. When Share and NTFS permissions conflict, the most restrictive permission always applies.
+
+Q2: Why do we disable inheritance when creating a new department share?
+A2: By default, the `C:\` drive grants the local `Users` group Read access. If inheritance is not disabled, every employee in the company will automatically inherit read access to sensitive department files.
