@@ -1,0 +1,66 @@
+# Day 10 – Folder Redirection
+
+## 🎯 Purpose
+Decouple critical user data from physical client hardware by silently redirecting standard profile folders (Desktop, Documents, Pictures) to a centralized, backed-up network File Server.
+
+---
+
+## 🔑 Key Concepts & Terms
+
+* Folder Redirection: A Group Policy feature that changes the target location of a user's profile folders from the local hard drive to a network share.
+* Exclusive Rights: A default security setting in Folder Redirection that grants the target user full control over their redirected folder while simultaneously revoking Administrator access to ensure data privacy.
+* Offline Files (Client-Side Caching): A companion Windows feature that caches a local copy of redirected files on the laptop, allowing the user to work on airplanes or at home without being connected to the server.
+
+---
+
+## 🏗️ Architecture: Local vs. Redirected
+
+```text
+BEFORE REDIRECTION                     AFTER REDIRECTION
++--------------------+                 +--------------------+
+| CLIENT01           |                 | CLIENT01           |
+| C:\Users\jane\     |                 | C:\Users\jane\     |
+|   ├── Desktop      |                 |   ├── Desktop --------> [Saved to \\DC01\UserProfiles]
+|   └── Documents    |                 |   └── Documents ------> [Saved to \\DC01\UserProfiles]
++--------------------+                 +--------------------+
+* If laptop dies, data dies.           * If laptop dies, data is safe on server.
+```
+
+---
+
+## 🛠️ Execution Methods
+
+### Interactive GUI Method (GPMC)
+1. Create a hidden, shared root folder on the File Server (e.g., `\\dc01\UserProfiles`) and grant `Everyone = Full Control` on the Share Permissions.
+2. Open Group Policy Management Console (`gpmc.msc`).
+3. Create and link a new GPO (e.g., `HR-Folder-Redirection`) to the target OU.
+4. Edit the GPO: **User Configuration** -> **Policies** -> **Windows Settings** -> **Folder Redirection**.
+5. Right-click the desired folder (e.g., Desktop) -> **Properties**.
+6. Set Setting to **Basic - Redirect everyone's folder to the same location**.
+7. Set Target folder location to **Create a folder for each user under the root path**.
+8. Enter the UNC path of the share (e.g., `\\dc01\UserProfiles`) and Apply.
+
+---
+
+## ✅ Post-Configuration Verification
+
+* Client Verification: Have the user create a file on their Desktop.
+* Server Verification: Attempt to access the user's generated folder on the server (e.g., `C:\UserProfiles\jane.doe\Desktop`). If Folder Redirection is working with default security settings, the Administrator will receive an **Access Denied** error, proving the system automatically generated the folder and applied exclusive rights to the user.
+
+---
+
+## 🚨 Common Pitfalls & Troubleshooting
+
+* Error: The user logs in but the folder is not redirected (files are saving locally).
+  * Cause: The UNC path defined in the GPO is incorrect, or the user does not have Share permissions to write to the root network folder.
+  * Fix: Verify `\\ServerName\ShareName` is reachable from the client PC and that Share permissions are set to Everyone Full Control.
+
+---
+
+## ❓ Essential Interview Questions
+
+Q1: What is the main difference between Roaming User Profiles and Folder Redirection?
+A1: Roaming Profiles copy the *entire* user profile from the server to the client at logon, which can cause extremely slow login times if the user has 50GB of files. Folder Redirection leaves the files on the server and only loads them over the network when the user explicitly clicks on them, vastly speeding up logins.
+
+Q2: What happens when a user with Folder Redirection takes their laptop home and disconnects from the corporate network?
+A2: Thanks to the Windows "Offline Files" feature (enabled by default with Redirection), the user can still open and edit their files locally. When they reconnect to the corporate network, Windows automatically syncs the changes back to the File Server in the background.
