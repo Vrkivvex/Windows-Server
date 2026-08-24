@@ -1,0 +1,54 @@
+# Day 06 – DHCP Infrastructure & Automation
+
+## 🎯 Purpose & Core Concepts
+Automate the distribution of IP addresses, subnet masks, default gateways, and DNS settings to network devices to prevent IP conflicts and eliminate manual configuration overhead.
+
+* DHCP Scope: A defined, continuous range of IP addresses available for lease on a specific subnet.
+* DORA Process: The 4-step initialization handshake used to obtain an IP (Discover, Offer, Request, Acknowledge).
+* DHCP Lease: The specific duration a client is authorized to use an assigned IP address before it must ask for a renewal.
+* Exclusions & Reservations: Removing specific IPs from the general pool to assign them permanently to static infrastructure (e.g., printers, managed switches).
+
+## 🏗️ Architecture: The DORA Handshake
+
+```text
+CLIENT01                                   DC01 (DHCP Server)
+   |                                              |
+   |------(1) DISCOVER (Broadcast: "Help!")------>|
+   |<-----(2) OFFER (Unicast: "Here is .100")-----|
+   |------(3) REQUEST ("I accept .100")---------->|
+   |<-----(4) ACK (Database updated)--------------|
+   |                                              |
+```
+
+## 🛠️ Execution Methods
+
+### Option A: Interactive GUI Method
+1. Server Manager -> Manage -> Add Roles and Features -> Select **DHCP Server**.
+2. Post-Install: Click the Yellow Flag to **Authorize DHCP** using Domain Admin credentials.
+3. Open DHCP Manager (`dhcpmgmt.msc`) -> Right-click IPv4 -> **New Scope**.
+4. Define Name, Start/End IP Range (e.g., `192.168.1.100` to `200`), and Subnet Mask.
+5. Configure Scope Options: Assign Default Gateway (Option 003) and DNS Server (Option 006). Activate the scope.
+
+### Option B: PowerShell Automation (Enterprise Standard)
+```powershell
+# 1. Install the DHCP Role
+Install-WindowsFeature DHCP -IncludeManagementTools
+
+# 2. Authorize the DHCP Server in Active Directory
+Add-DhcpServerInDC -DnsName dc01.corp.local -IPAddress 192.168.1.10
+
+# 3. Build and Configure the Scope
+Add-DhcpServerv4Scope -Name "Corp-Network" -StartRange 192.168.1.100 -EndRange 192.168.1.200 -SubnetMask 255.255.255.0
+Set-DhcpServerv4OptionValue -ScopeId 192.168.1.0 -DnsServer 192.168.1.10 -Router 192.168.1.1
+```
+
+## ✅ Enterprise Verification & Interview Questions
+
+* Command Line Verification (Client): Use `ipconfig /release` followed by `ipconfig /renew` to force a new DORA handshake.
+* Database Verification (Server): Use `Get-DhcpServerv4Lease -ScopeId 192.168.1.0` to view active assignments.
+
+**Q1: What happens if the DHCP server goes offline?**
+A1: Existing clients will keep their current IP addresses until their lease expires. However, brand-new devices joining the network will assign themselves an APIPA address (`169.254.x.x`) and will not be able to communicate with the domain.
+
+**Q2: Why must you "Authorize" a DHCP server in Active Directory?**
+A2: It is a critical security measure. Without authorization, any employee plugging a home Wi-Fi router into the office wall could accidentally hand out bad IP addresses and take down the entire corporate network (Rogue DHCP). Active Directory blocks unauthorized Windows DHCP servers from functioning.
