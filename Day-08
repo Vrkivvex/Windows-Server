@@ -1,0 +1,68 @@
+# Day 08 – Group Policy Preferences (GPP) & Drive Mapping
+
+## 🎯 Purpose
+Automate the configuration of the user environment by seamlessly delivering network resources (like shared folders and printers) directly to the end-user's workstation at logon.
+
+---
+
+## 🔑 Key Concepts & Terms
+
+* Group Policy Preferences (GPP): An extension of Group Policy that allows administrators to configure, deploy, and manage OS settings that were previously handled by complex logon scripts.
+* Drive Mapping: The process of assigning a local drive letter (e.g., `H:`) to a remote network share (e.g., `\\dc01\HR-Docs`).
+* Update Action: The standard GPP action that creates a mapped drive if it does not exist, or updates its settings if it has been modified.
+* Replace Action: Deletes the existing mapped drive and recreates it from scratch (often used to clear out old, stuck connections).
+
+---
+
+## 🏗️ Architecture: GPO vs GPP
+
+```text
+GROUP POLICY (The Law)                  GROUP POLICY PREFERENCES (The Guide)
++------------------------+              +--------------------------+
+| - Enforces Security    |              | - Delivers Resources     |
+| - Cannot be changed    |              | - User can modify local  |
+|   by the end-user.     |              |   settings if allowed.   |
+| - e.g., Block Control  |              | - e.g., Map network      |
+|   Panel, Force Lock.   |              |   drives, Add printers.  |
++------------------------+              +--------------------------+
+```
+
+---
+
+## 🛠️ Execution Methods
+
+### Option A: Interactive GUI Method (GPMC)
+1. Open Group Policy Management Console (`gpmc.msc`).
+2. Right-click the target OU (e.g., `HR`) -> **Create a GPO in this domain, and Link it here...**
+3. Name the GPO and click **Edit**.
+4. Navigate to **User Configuration** -> **Preferences** -> **Windows Settings** -> **Drive Maps**.
+5. Right-click **Drive Maps** -> **New** -> **Mapped Drive**.
+6. Set Action to **Update**, define the **Location** (UNC Path), check **Reconnect**, and assign a **Drive Letter**.
+
+### Option B: PowerShell Automation
+*Note: While PowerShell is king for AD management, creating GPP Drive Maps purely via PowerShell requires editing raw XML files inside the SYSVOL directory, which is highly prone to error. In the enterprise, Drive Maps are almost universally configured via the GUI, while PowerShell is used to create and link the GPO container.*
+
+```powershell
+# Create and Link the GPO container before configuring the XML via GUI
+New-GPO -Name "HR-Drive-Mapping" | New-GPLink -Target "OU=HR,OU=_Company,DC=corp,DC=local"
+```
+
+---
+
+## ✅ Post-Configuration Verification
+
+* Client Verification: Have the target user log off and log back in. Open File Explorer to verify the drive letter appears under "This PC".
+* Server Verification: Run `Get-GPO -Name "Policy-Name"` and check the `UserVersion`. If it is `0`, the preference was not saved properly.
+
+---
+
+## ❓ Essential Interview Questions
+
+Q1: Why do we use Group Policy Preferences for drive mapping instead of the old method of writing batch (.bat) logon scripts?
+A1: GPP is built directly into Windows, processes much faster than scripts, provides a clean GUI for administrators, and allows for "Item-Level Targeting" (applying a drive map based on security groups rather than just OUs).
+
+Q2: What is the UNC path format?
+A2: Universal Naming Convention. It is formatted as `\\ServerName\ShareName`.
+
+Q3: If a GPO is linked to the Domain level but applies User Configuration settings, will it affect the Administrator account?
+A3: Yes. Unless explicitly filtered out, user policies apply to any user account residing inside the container (or child containers) where the GPO is linked.
