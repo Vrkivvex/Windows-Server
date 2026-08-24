@@ -1,0 +1,70 @@
+# Day 11 – Print Server Deployment & PrintNightmare Security
+
+## 🎯 Purpose
+Centralize the management of hardware printer drivers and automate the deployment of network printers to end-users based on their department or security group, eliminating manual IT setup.
+
+---
+
+## 🔑 Key Concepts & Terms
+
+* Print Server: A centralized server that hosts printer drivers and manages print queues for the entire network. Clients send print jobs to the server, which then forwards them to the physical hardware.
+* PrintNightmare (CVE-2021-34527): A massive 2021 critical vulnerability that forced Microsoft to permanently change Windows security. By default, standard non-admin users are now strictly prohibited from downloading or installing print drivers over the network.
+* Point and Print Restrictions: A Group Policy setting used to bypass the PrintNightmare block by explicitly telling client computers which specific servers they are allowed to safely download drivers from.
+
+---
+
+## 🏗️ Architecture: The Automated Print Queue
+
+```text
+CLIENT01 (Jane Doe)                   DC01 (Print Server)                 PHYSICAL PRINTER
++-----------------+                   +-----------------+                 +--------------+
+| Hits Ctrl + P   |---(Print Job)---> | Spools the Job  |---(Network)---> | Prints Paper |
+| (No Admin Req.) |                   | Manages Queue   |                 |              |
++-----------------+                   +-----------------+                 +--------------+
+```
+
+---
+
+## 🛠️ Execution Methods
+
+### Step 1: Build the Print Server
+1. Install the **Print and Document Services** role via Server Manager.
+2. Open **Print Management** (`printmanagement.msc`).
+3. Right-click Printers -> **Add Printer...**
+4. Create a new Local Port (e.g., LPT1) and install a driver (e.g., Generic / Text Only).
+5. Name the printer (e.g., `HR-Office-Printer`) and ensure **Share this printer** is checked.
+
+### Step 2: The PrintNightmare Security Bypass (Computer Policy)
+*Because of modern Windows security, you must authorize driver installations at the domain level before deploying the printer.*
+1. Create a GPO linked to the Domain Root (e.g., `PrintNightmare-Bypass`).
+2. Navigate to: **Computer Configuration** -> **Policies** -> **Administrative Templates** -> **Printers**.
+3. Enable **Point and Print Restrictions**: Check *Users can only point and print to these servers*, enter the server FQDN (`dc01.corp.local`), and set Security Prompts to *Do not show warning or elevation prompt*.
+4. Disable **Limits print driver installation to Administrators**.
+5. *Restart client computers to enforce this security baseline.*
+
+### Step 3: Deploy the Printer (User Policy)
+1. In **Print Management**, right-click the shared printer -> **Deploy with Group Policy...**
+2. Browse to and create a GPO linked to the target OU (e.g., the `HR` OU).
+3. Check **The users that this GPO applies to (per user)**.
+4. Click Add, Apply, and OK.
+
+---
+
+## ✅ Post-Configuration Verification
+
+Verify the printer successfully mapped to the user's session without UAC admin prompts by running this command on the client PC:
+
+```powershell
+Get-Printer | Select-Object Name
+```
+*Look for `\\ServerName\PrinterName` in the output.*
+
+---
+
+## ❓ Essential Interview Questions
+
+Q1: A user complains they are getting an administrator prompt when trying to connect to a network printer. What caused this?
+A1: The "PrintNightmare" security patch. By default, standard users cannot install print drivers. The IT department must configure the "Point and Print Restrictions" Group Policy to explicitly trust the print server.
+
+Q2: Why did we link the PrintNightmare bypass GPO to the Domain root, but link the Printer Deployment GPO to the HR OU?
+A2: The PrintNightmare bypass modifies the registry of the local computer hardware (Computer Configuration) to allow driver installations, so it must hit the computer objects. The Printer Deployment is targeted at specific employees (User Configuration), so it should only apply to the HR OU.
