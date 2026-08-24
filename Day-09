@@ -1,0 +1,62 @@
+# Day 09 – Domain Security: Password Policies & Account Lockout
+
+## 🎯 Purpose
+Harden the enterprise network against unauthorized access, credential stuffing, and brute-force attacks by enforcing strict password complexity rules and account lockout thresholds at the domain level.
+
+---
+
+## 🔑 Key Concepts & Terms
+
+* Default Domain Policy: A built-in Group Policy Object linked to the root of the domain. It is the *only* place where domain-wide password and account lockout policies should be configured.
+* Password Complexity: A rule forcing users to use a combination of uppercase letters, lowercase letters, numbers, and special characters.
+* Account Lockout Threshold: The number of failed login attempts allowed before the system temporarily freezes the account.
+* Brute-Force Attack: A hacking method that uses automated software to guess thousands of password combinations per second until it finds the correct one.
+
+---
+
+## 🏗️ Architecture: Domain-Level Enforcement
+
+Unlike standard Group Policies (like mapped drives or blocked control panels) which are linked to specific Organizational Units (OUs), Password Policies are unique. 
+
+Active Directory requires Password and Lockout policies to be linked at the **Domain Root** (`corp.local`). If you link a password policy to the HR OU, it will not work. The Default Domain Policy ensures every single user in the database is held to the same cryptographic standard.
+
+---
+
+## 🛠️ Execution Methods
+
+### Option A: Interactive GUI Method (GPMC)
+1. Open Group Policy Management Console (`gpmc.msc`).
+2. Expand the forest and domain, right-click **Default Domain Policy**, and select **Edit**.
+3. Navigate to: **Computer Configuration** -> **Policies** -> **Windows Settings** -> **Security Settings** -> **Account Policies**.
+4. **Password Policy:** Set *Minimum password length* (e.g., 12 characters) and enable *Password must meet complexity requirements*.
+5. **Account Lockout Policy:** Set *Account lockout threshold* (e.g., 5 invalid attempts) and accept the default 30-minute lockout duration.
+
+### Option B: PowerShell Automation (Enterprise Standard)
+```powershell
+# Modify the Default Domain Password Policy
+Set-ADDefaultDomainPasswordPolicy -Identity corp.local -MinPasswordLength 12 -ComplexityEnabled $true -LockoutThreshold 5 -LockoutDuration (New-TimeSpan -Minutes 30) -LockoutObservationWindow (New-TimeSpan -Minutes 30)
+```
+
+---
+
+## ✅ Post-Configuration Verification
+
+Verify the active security rules directly from the Active Directory database:
+
+```powershell
+Get-ADDefaultDomainPasswordPolicy
+```
+*Review the output to ensure `ComplexityEnabled`, `LockoutThreshold`, and `MinPasswordLength` reflect the new security baseline.*
+
+---
+
+## ❓ Essential Interview Questions
+
+Q1: Why must the password policy be configured in the Default Domain Policy rather than a specific OU?
+A1: Because password policies evaluate against the user object in the Active Directory database during the authentication phase, before the system checks which OU the user belongs to. It requires a single, domain-wide rule.
+
+Q2: What is the purpose of the "Account Lockout Observation Window"?
+A2: It determines how long the system remembers a bad password attempt. If the threshold is 5 attempts, and the observation window is 30 minutes, a user who fails 4 times, waits 31 minutes, and fails again will *not* be locked out, because the counter reset after 30 minutes.
+
+Q3: A user is locked out and calls the IT Helpdesk. What tool do you use to unlock them?
+A3: Active Directory Users and Computers (`dsa.msc`). Right-click the user -> Properties -> Account tab -> Check "Unlock account" and click Apply.
