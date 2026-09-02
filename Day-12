@@ -1,0 +1,60 @@
+# Day 12 – File Server Resource Manager (FSRM)
+
+## 🎯 Purpose
+Protect enterprise storage infrastructure from capacity exhaustion and inappropriate data storage by enforcing hard storage limits and blocking non-business file types.
+
+---
+
+## 🔑 Key Concepts & Terms
+
+* File Server Resource Manager (FSRM): A suite of tools for Windows Server that allows administrators to classify, manage, and restrict data stored on file servers.
+* Storage Quota: A storage limit placed on a specific folder or volume. 
+  * Hard Quota: Physically prevents users from saving files once the limit is reached.
+  * Soft Quota: Allows users to exceed the limit but generates an alert/event log for the administrator.
+* File Screen: A filter that prevents users from saving specific types of files (e.g., `.mp4`, `.mp3`, `.exe`) to a monitored folder.
+
+---
+
+## 🏗️ Architecture: The Minifilter Driver
+
+When FSRM is installed, it inserts a minifilter driver into the Windows storage stack. Before a file is written to the physical hard drive, the driver inspects the file's metadata (like its extension and size). If the file violates a Quota or a File Screen, the driver intercepts the I/O request and returns an `Access Denied` error to the client PC over the network, completely blocking the write action.
+
+---
+
+## 🛠️ Execution Methods
+
+### Step 1: Install FSRM
+1. Open Server Manager -> **Add Roles and Features**.
+2. Expand **File and Storage Services** -> **File and iSCSI Services**.
+3. Check **File Server Resource Manager** and install.
+
+### Step 2: Configure a Storage Quota
+1. Open **File Server Resource Manager** (`fsrm.msc`).
+2. Expand **Quota Management** -> Right-click **Quotas** -> **Create Quota**.
+3. Define the target Folder Path (e.g., `C:\CorpData\HR-Docs`).
+4. Select a template (e.g., **100 MB Limit (Hard)**) and click Create.
+
+### Step 3: Configure a File Screen
+1. Expand **File Screening Management** -> Right-click **File Screens** -> **Create File Screen**.
+2. Define the target Folder Path.
+3. Select a template (e.g., **Block Audio and Video Files**) and click Create.
+
+---
+
+## ✅ Post-Configuration Verification
+
+* File Screen Verification: Attempt to save or rename a file on the client PC using a blocked extension (e.g., `test.mp4`). The system will throw an Access Denied/Permission error.
+* Quota Verification: Run the following PowerShell command on the server to verify the quota database:
+  ```powershell
+  Get-FsrmQuota -Path "C:\CorpData\HR-Docs" | Select-Object Path, Size
+  ```
+
+---
+
+## ❓ Essential Interview Questions
+
+Q1: A department needs a 50GB storage limit, but they want to be warned when they hit 45GB without actually being blocked. How do you configure this?
+A1: You configure a "Soft Quota" set to 50GB, and set an email or event log notification threshold at 90% utilization.
+
+Q2: Users are changing the extensions of their `.mp4` files to `.txt` to bypass your File Screen. How does FSRM handle this?
+A2: Standard FSRM File Screens only check the file extension, meaning this bypass will successfully trick the server. To stop this, advanced administrators use Active Directory File Classification Infrastructure (FCI) to scan the actual hex headers inside the files, rather than relying purely on the file name.
