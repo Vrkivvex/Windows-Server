@@ -1,0 +1,43 @@
+# Day 15 – Capstone Project: Enterprise Outage & Network Diagnostics
+
+## 🎯 Purpose
+Apply complete system administration troubleshooting methodologies to diagnose a sudden loss of domain connectivity, isolate the failure point, and restore enterprise services to the end-user.
+
+---
+
+## 🔑 Key Concepts & Terms
+
+* DNS (Domain Name System): The absolute backbone of Active Directory. AD relies entirely on DNS to locate Domain Controllers, process Group Policy, and route authentication requests. If a client uses an external DNS (like 8.8.8.8), it becomes blind to the internal domain.
+* The OSI Troubleshooting Model: 
+  * Layer 3 (Network): Tested by pinging a raw IP address (e.g., `192.168.1.10`). If this succeeds, the physical network and routing are functional.
+  * Layer 7 (Application/DNS): Tested by pinging a hostname (e.g., `dc01.corp.local`). If Layer 3 succeeds but Layer 7 fails, the outage is strictly a name resolution issue.
+* Flush DNS: The process of clearing the client machine's local DNS cache to force it to request fresh routing information from the server.
+
+---
+
+## 🛠️ Execution Methods
+
+### Step 1: Isolate the Failure Domain
+1. Open Command Prompt or PowerShell on the affected client.
+2. Run `ping [Hostname]` (e.g., `ping dc01`). A "could not find host" error indicates a DNS failure.
+3. Run `ping [IP Address]` (e.g., `ping 192.168.1.10`). A "Reply from..." confirms the physical network is healthy.
+
+### Step 2: Restore DNS Configuration
+1. Open Network Connections (`ncpa.cpl`) using Domain Administrator credentials.
+2. Open the properties of the IPv4 adapter.
+3. Verify and correct the **Preferred DNS server** to point to the internal Domain Controller.
+
+### Step 3: Clear Cache and Force Sync
+1. Open an elevated PowerShell prompt.
+2. Run `ipconfig /flushdns` to purge invalid cache entries.
+3. Run `gpupdate /force` to immediately pull domain policies and re-map network drives and printers.
+
+---
+
+## ❓ Essential Interview Questions
+
+Q1: An employee calls the Helpdesk and says they cannot access the `\\DC01\Finance` shared drive. You can ping `192.168.1.50` successfully, but pinging `DC01` returns "host not found". What is the issue?
+A1: The client machine has a DNS resolution failure. It is likely configured with an incorrect DNS server, such as a public Google DNS or a home router, preventing it from resolving internal Active Directory hostnames.
+
+Q2: Why do we run `ipconfig /flushdns` before running `gpupdate /force` when fixing a network adapter?
+A2: Windows caches DNS records to speed up browsing. If the cache still holds the broken or external routing information, Group Policy will fail to update. Flushing the cache forces the computer to immediately ask the Domain Controller for fresh, correct routing data.
