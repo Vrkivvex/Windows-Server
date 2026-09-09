@@ -1,0 +1,63 @@
+# Day 13 – Software Deployment via Group Policy
+
+## 🎯 Purpose
+Eliminate manual software installations by leveraging Group Policy to silently and automatically distribute enterprise applications to client machines across the network.
+
+---
+
+## 🔑 Key Concepts & Terms
+
+* MSI (Microsoft Installer): The required file format for Group Policy software deployment. Unlike standard `.exe` files, `.msi` packages contain relational databases that dictate exactly how the software should be installed, modified, or removed silently.
+* Hidden Share (`$`): Appending a dollar sign to the end of a network share name (e.g., `Software$`) makes the folder invisible to users browsing the network, securing the installers from accidental modification or deletion.
+* Assigned vs. Published: 
+  * Assigned (Computer Policy): Installs the software automatically in the background during the computer's boot process.
+  * Published (User Policy): Makes the software available in the user's "Add/Remove Programs" control panel so they can choose to install it themselves.
+
+---
+
+## 🏗️ Architecture: The Silent Install
+
+```text
+DC01 (The Repository)                 GPO (The Delivery)                  CLIENT01 (The Target)
++-------------------+                 +------------------+                +-------------------+
+| \\dc01\Software$  |---(Linked)--->  | Deploy-7Zip GPO  |---(Applies)--> | Boots Up          |
+| 7zip.msi          |                 | Computer Config  |                | Pulls MSI silently|
++-------------------+                 +------------------+                | Installs at logon |
+                                                                          +-------------------+
+```
+
+---
+
+## 🛠️ Execution Methods
+
+### Step 1: Create the Software Repository
+1. Create a folder on the server (e.g., `C:\SoftwareRepo`).
+2. Share the folder and append a `$` to the share name (e.g., `Software$`).
+3. Grant `Everyone = Read` permissions on the share.
+4. Place a valid `.msi` installer into this folder.
+
+### Step 2: Configure the Deployment GPO
+1. Open Group Policy Management (`gpmc.msc`).
+2. Create and link a GPO to the Domain Root or a specific Computer OU.
+3. Edit the GPO: **Computer Configuration** -> **Policies** -> **Software Settings** -> **Software installation**.
+4. Right-click -> **New** -> **Package...**
+5. Enter the **UNC Network Path** (`\\dc01\Software$\installer.msi`). *Never use the local C:\ path.*
+6. Select the **Assigned** deployment method.
+
+---
+
+## ✅ Post-Configuration Verification
+
+* Force a Group Policy update on the client machine (`gpupdate /force`).
+* Restart the client computer to trigger the Computer Configuration boot cycle.
+* Log in and verify the application appears in the Start menu and is fully functional.
+
+---
+
+## ❓ Essential Interview Questions
+
+Q1: You built a software deployment GPO, but it is failing to install on the client PCs. You mapped the package to `C:\SoftwareRepo\app.msi`. What went wrong?
+A1: Group Policy executes from the perspective of the client computer. If the GPO tells the client to look at `C:\SoftwareRepo`, the client looks at its *own* local C: drive, fails to find the folder, and crashes the install. You must always use the network UNC path (`\\ServerName\ShareName$`).
+
+Q2: Why do System Administrators use hidden shares (like `Software$`) for deployment repositories?
+A2: It prevents standard users from discovering the software repository while browsing Network Explorer, protecting the installation files from unauthorized access, accidental deletion, or tampering.

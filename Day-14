@@ -1,0 +1,38 @@
+# Day 14 – Disaster Recovery: Active Directory Recycle Bin
+
+## 🎯 Purpose
+Safeguard the enterprise identity database against accidental administrative deletion by retaining user, computer, and group objects with all their attributes and permissions intact for rapid restoration.
+
+---
+
+## 🔑 Key Concepts & Terms
+
+* Active Directory Recycle Bin: A forest-level feature that allows administrators to fully restore deleted AD objects without rebooting a Domain Controller into Directory Services Restore Mode (DSRM) or using a backup tape.
+* Tombstone Lifetime: The default 180-day period during which a deleted object is retained in the Recycle Bin before being permanently purged by the garbage collection process.
+* Irreversible Action: Enabling the AD Recycle Bin alters the AD database schema and cannot be disabled once turned on.
+
+---
+
+## 🛠️ Execution Methods
+
+### Enable the Recycle Bin
+1. Open **Active Directory Administrative Center** (`dsac.exe`).
+2. Click the local domain name in the left pane (e.g., `corp (local)`).
+3. In the Tasks pane on the far right, click **Enable Recycle Bin...**
+4. Click OK and refresh the console. A new **Deleted Objects** container will appear in the center pane.
+
+### Restore an Object
+1. Open **Active Directory Administrative Center** (`dsac.exe`).
+2. Navigate to the **Deleted Objects** container.
+3. Right-click the accidentally deleted user, computer, or group.
+4. Select **Restore** (returns it immediately to its original OU) or **Restore To...** (allows you to designate a new OU destination).
+
+---
+
+## ❓ Essential Interview Questions
+
+Q1: Before the AD Recycle Bin was introduced in Server 2008 R2, what happened when a user was deleted and then restored using a tombstone reanimation tool?
+A1: The account object was restored, but all of its group memberships, passwords, and custom attributes were permanently stripped. The administrator still had to manually rebuild the user's security access rights from scratch.
+
+Q2: Can you disable the Active Directory Recycle Bin if it is taking up too much storage space in the AD database?
+A2: No. Once enabled at the Forest level, it is a permanent schema change and cannot be reversed.
